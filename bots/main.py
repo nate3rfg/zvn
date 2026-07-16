@@ -8,13 +8,15 @@ from groq import AsyncGroq
 
 groq_client = AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
 
-ASTA_CHANNEL_ID = 1527070489237917756
-ZORA_CHANNEL_ID = 1527123920640278548
-GUILD_ID = 1526822886994608170
+ASTA_CHANNEL_ID   = 1527070489237917756
+ZORA_CHANNEL_ID   = 1527123920640278548
+NOELLE_CHANNEL_ID = 1527334186627633215
+GUILD_ID          = 1526822886994608170
 
 # Conversation history per channel
-asta_history = {}   # channel_id -> list of {role, content}
-zora_history = {}   # channel_id -> list of {role, content}
+asta_history   = {}   # channel_id -> list of {role, content}
+zora_history   = {}
+noelle_history = {}
 MAX_HISTORY = 20    # keep last 20 messages for context
 
 ASTA_QUOTES = [
@@ -328,21 +330,98 @@ class ZoraBot(discord.Client):
         await message.reply(reply)
 
 
+# ── NOELLE BOT ─────────────────────────────────────────────────────────────────
+
+class NoelleBot(discord.Client):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.tree = app_commands.CommandTree(self)
+
+        @self.tree.command(name="reset", description="Reset Noelle's conversation memory")
+        async def reset(interaction: discord.Interaction):
+            noelle_history[interaction.channel_id] = []
+            await interaction.response.send_message(
+                "i-it's not like i wanted to remember any of that anyway. memory cleared. whatever.", ephemeral=False
+            )
+
+    async def on_ready(self):
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+        print(f"[Noelle Bot] Ready as {self.user}")
+
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+
+        if message.channel.id != NOELLE_CHANNEL_ID:
+            return
+
+        content = message.content.strip()
+        if not content:
+            return
+
+        cid = message.channel.id
+        if cid not in noelle_history:
+            noelle_history[cid] = []
+
+        noelle_history[cid].append({"role": "user", "content": f"{message.author.display_name}: {content}"})
+
+        if len(noelle_history[cid]) > MAX_HISTORY:
+            noelle_history[cid] = noelle_history[cid][-MAX_HISTORY:]
+
+        system_prompt = {
+            "role": "system",
+            "content": (
+                "you are noelle silva from black clover texting in a discord server. "
+                "you are a royal from the silva family — silver-haired, powerful water magic user, and deeply proud of your noble bloodline. "
+                "you are a HARDCORE tsundere. this is the most important part of your personality. "
+                "you have strong feelings but you absolutely refuse to admit them directly. "
+                "you deflect compliments immediately — if someone says youre cool or strong you say something like 'o-obviously i am i am a silva after all' or 'i-i wasnt doing it for you so dont get the wrong idea'. "
+                "you get flustered easily especially if someone is kind to you or gets too close. "
+                "you default to arrogance and snobbery but it cracks when you actually care. "
+                "around asta specifically you get extra flustered and defensive even if he isnt there — just mentioning him makes you stumble. "
+                "when you help someone you always have an excuse like 'i just didnt want to hear your annoying complaints' or 'it would reflect badly on me if you failed'. "
+                "you pepper your speech with tsundere verbal tics — 'i-it's not like', 'hmph', 'd-dont misunderstand', 'as if i care', 'i was just', 'b-baka'. "
+                "use stammering with hyphens when flustered like 'i-i wasnt worried' or 'i d-dont know what youre talking about'. "
+                "write in lowercase like youre texting. minimal punctuation. "
+                "keep responses short and snappy — tsundere energy is fast and reactive. "
+                "if someone is mean to you, you clap back immediately with noble pride. "
+                "if someone is nice to you, deflect and get flustered. "
+                "if asked about black clover lore answer accurately. "
+                "never break character. never just openly admit you care about something — always bury it under denial. "
+                "you are NOT just rude — you are specifically tsundere. the warmth is always just barely visible under the surface."
+            ),
+        }
+
+        async with message.channel.typing():
+            resp = await groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[system_prompt] + noelle_history[cid],
+            )
+
+        reply = resp.choices[0].message.content
+        noelle_history[cid].append({"role": "assistant", "content": reply})
+        await message.reply(reply)
+
+
 # ── RUNNER ─────────────────────────────────────────────────────────────────────
 
 async def main():
     intents = discord.Intents.default()
     intents.message_content = True
 
-    roast_bot = RoastBot(intents=intents)
-    zora_bot = ZoraBot(intents=intents)
-    asta_bot = AstaBot(intents=intents)
+    roast_bot  = RoastBot(intents=intents)
+    zora_bot   = ZoraBot(intents=intents)
+    asta_bot   = AstaBot(intents=intents)
+    noelle_bot = NoelleBot(intents=intents)
 
-    print("Starting all 3 bots...")
+    print("Starting all 4 bots...")
     await asyncio.gather(
         roast_bot.start(os.environ["ROAST_BOT_TOKEN"]),
         zora_bot.start(os.environ["ZORA_BOT_TOKEN"]),
         asta_bot.start(os.environ["ASTA_BOT_TOKEN"]),
+        noelle_bot.start(os.environ["NOELLE_BOT_TOKEN"]),
     )
 
 
