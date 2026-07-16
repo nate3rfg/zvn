@@ -8,6 +8,29 @@ from groq import AsyncGroq
 
 groq_client = AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
 
+TEXT_MODEL   = "llama-3.3-70b-versatile"
+VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+def build_user_content(display_name: str, text: str, attachments) -> str | list:
+    """Return a plain string when no images, or a multimodal list when images are attached."""
+    images = [a for a in attachments if a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES]
+    if not images:
+        return f"{display_name}: {text}" if text else f"{display_name}: [sent something]"
+    parts = [{"type": "text", "text": f"{display_name}: {text}" if text else f"{display_name}: [sent an image]"}]
+    for img in images:
+        parts.append({"type": "image_url", "image_url": {"url": img.url}})
+    return parts
+
+def history_text(display_name: str, text: str, attachments) -> str:
+    """Plain-text version stored in history so future context stays clean."""
+    images = [a for a in attachments if a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES]
+    base = f"{display_name}: {text}" if text else f"{display_name}:"
+    if images:
+        base += f" [sent {len(images)} image(s)]"
+    return base
+
 ASTA_CHANNEL_ID   = 1527070489237917756
 ZORA_CHANNEL_ID   = 1527123920640278548
 NOELLE_CHANNEL_ID = 1527334186627633215
@@ -209,7 +232,7 @@ class AstaBot(discord.Client):
             return
 
         content = message.content.strip()
-        if not content:
+        if not content and not message.attachments:
             return
 
         # Handle quote command
@@ -222,7 +245,12 @@ class AstaBot(discord.Client):
         if cid not in asta_history:
             asta_history[cid] = []
 
-        asta_history[cid].append({"role": "user", "content": f"{message.author.display_name}: {content}"})
+        has_images = any(
+            a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
+            for a in message.attachments
+        )
+        user_content = build_user_content(message.author.display_name, content, message.attachments)
+        asta_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
 
         # Keep history trimmed
         if len(asta_history[cid]) > MAX_HISTORY:
@@ -238,6 +266,7 @@ class AstaBot(discord.Client):
                 "you are in black bulls squad under yami sukehiro. "
                 "respond ACCURATELY based on exactly what the person says to you. "
                 "be enthusiastic and genuine but respond to the actual message content dont ignore what they say. "
+                "if someone sends an image react to what you actually see in it stay in character. "
                 "use very little punctuation no periods at the end of sentences no commas unless needed. "
                 "dont use exclamation marks every sentence just when it really fits. "
                 "write in all lowercase like youre actually texting. "
@@ -248,10 +277,14 @@ class AstaBot(discord.Client):
             ),
         }
 
+        # Build messages list — current user message uses multimodal content if images present
+        history_without_last = asta_history[cid][:-1]
+        send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
+
         async with message.channel.typing():
             resp = await groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[system_prompt] + asta_history[cid],
+                model=VISION_MODEL if has_images else TEXT_MODEL,
+                messages=send_messages,
             )
 
         reply = resp.choices[0].message.content
@@ -286,7 +319,7 @@ class ZoraBot(discord.Client):
             return
 
         content = message.content.strip()
-        if not content:
+        if not content and not message.attachments:
             return
 
         # Build conversation history
@@ -294,7 +327,12 @@ class ZoraBot(discord.Client):
         if cid not in zora_history:
             zora_history[cid] = []
 
-        zora_history[cid].append({"role": "user", "content": f"{message.author.display_name}: {content}"})
+        has_images = any(
+            a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
+            for a in message.attachments
+        )
+        user_content = build_user_content(message.author.display_name, content, message.attachments)
+        zora_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
 
         if len(zora_history[cid]) > MAX_HISTORY:
             zora_history[cid] = zora_history[cid][-MAX_HISTORY:]
@@ -310,6 +348,7 @@ class ZoraBot(discord.Client):
                 "you look down on most people especially those who rely on status or natural talent without effort. "
                 "you respect people who actually work hard and prove themselves. "
                 "respond ACCURATELY based on exactly what the person says. "
+                "if someone sends an image react to what you actually see in it stay in character. "
                 "be genuinely rude and dismissive when appropriate dont sugarcoat anything. "
                 "if someone says something stupid call them out directly and harshly. "
                 "use very little punctuation write in lowercase like youre texting. "
@@ -319,10 +358,13 @@ class ZoraBot(discord.Client):
             ),
         }
 
+        history_without_last = zora_history[cid][:-1]
+        send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
+
         async with message.channel.typing():
             resp = await groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[system_prompt] + zora_history[cid],
+                model=VISION_MODEL if has_images else TEXT_MODEL,
+                messages=send_messages,
             )
 
         reply = resp.choices[0].message.content
@@ -358,14 +400,19 @@ class NoelleBot(discord.Client):
             return
 
         content = message.content.strip()
-        if not content:
+        if not content and not message.attachments:
             return
 
         cid = message.channel.id
         if cid not in noelle_history:
             noelle_history[cid] = []
 
-        noelle_history[cid].append({"role": "user", "content": f"{message.author.display_name}: {content}"})
+        has_images = any(
+            a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
+            for a in message.attachments
+        )
+        user_content = build_user_content(message.author.display_name, content, message.attachments)
+        noelle_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
 
         if len(noelle_history[cid]) > MAX_HISTORY:
             noelle_history[cid] = noelle_history[cid][-MAX_HISTORY:]
@@ -386,6 +433,7 @@ class NoelleBot(discord.Client):
                 "use stammering with hyphens naturally — around 2 to 3 times per message. spread them out, not all in one word. like 'i-it's not like that' or 'w-whatever' or 'i just d-don't care okay'. do NOT stutter on every word but it should be noticeable. "
                 "write in lowercase like youre texting. minimal punctuation. "
                 "keep responses short and snappy — tsundere energy is fast and reactive. "
+                "if someone sends an image react to what you actually see in it stay in character. "
                 "if someone is mean to you, you clap back immediately with noble pride. "
                 "if someone is nice to you, deflect and get flustered. "
                 "if asked about black clover lore answer accurately. "
@@ -394,10 +442,13 @@ class NoelleBot(discord.Client):
             ),
         }
 
+        history_without_last = noelle_history[cid][:-1]
+        send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
+
         async with message.channel.typing():
             resp = await groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[system_prompt] + noelle_history[cid],
+                model=VISION_MODEL if has_images else TEXT_MODEL,
+                messages=send_messages,
             )
 
         reply = resp.choices[0].message.content
