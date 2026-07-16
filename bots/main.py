@@ -197,9 +197,9 @@ class AstaBot(discord.Client):
             return
 
         # Reset command
-        if content.lower() == "!reset":
+        if content.lower() == "/reset":
             asta_history[message.channel.id] = []
-            await message.channel.send("reset 👍")
+            await message.reply("reset 👍")
             return
 
         # Handle quote command
@@ -246,7 +246,7 @@ class AstaBot(discord.Client):
 
         reply = resp.choices[0].message.content
         asta_history[cid].append({"role": "assistant", "content": reply})
-        await message.channel.send(reply)
+        await message.reply(reply)
 
 
 # ── ZORA BOT ───────────────────────────────────────────────────────────────────
@@ -268,9 +268,9 @@ class ZoraBot(discord.Client):
             return
 
         # Reset command
-        if content.lower() == "!reset":
+        if content.lower() == "/reset":
             zora_history[message.channel.id] = []
-            await message.channel.send("tch. fine.")
+            await message.reply("tch. fine.")
             return
 
         # Build conversation history
@@ -311,7 +311,7 @@ class ZoraBot(discord.Client):
 
         reply = resp.choices[0].message.content
         zora_history[cid].append({"role": "assistant", "content": reply})
-        await message.channel.send(reply)
+        await message.reply(reply)
 
 
 # ── RUNNER ─────────────────────────────────────────────────────────────────────
