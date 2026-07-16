@@ -3,12 +3,14 @@ import os
 import random
 import time
 import discord
+from discord import app_commands
 from groq import AsyncGroq
 
 groq_client = AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
 
 ASTA_CHANNEL_ID = 1527070489237917756
 ZORA_CHANNEL_ID = 1527123920640278548
+GUILD_ID = 1526822886994608170
 
 # Conversation history per channel
 asta_history = {}   # channel_id -> list of {role, content}
@@ -181,7 +183,19 @@ class RoastBot(discord.Client):
 # ── ASTA BOT ───────────────────────────────────────────────────────────────────
 
 class AstaBot(discord.Client):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.tree = app_commands.CommandTree(self)
+
+        @self.tree.command(name="reset", description="Reset Asta's conversation memory")
+        async def reset(interaction: discord.Interaction):
+            asta_history[interaction.channel_id] = []
+            await interaction.response.send_message("reset 👍", ephemeral=False)
+
     async def on_ready(self):
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
         print(f"[Asta Bot] Ready as {self.user}")
 
     async def on_message(self, message):
@@ -194,12 +208,6 @@ class AstaBot(discord.Client):
 
         content = message.content.strip()
         if not content:
-            return
-
-        # Reset command
-        if content.lower() == "/reset":
-            asta_history[message.channel.id] = []
-            await message.reply("reset 👍")
             return
 
         # Handle quote command
@@ -252,7 +260,19 @@ class AstaBot(discord.Client):
 # ── ZORA BOT ───────────────────────────────────────────────────────────────────
 
 class ZoraBot(discord.Client):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.tree = app_commands.CommandTree(self)
+
+        @self.tree.command(name="reset", description="Reset Zora's conversation memory")
+        async def reset(interaction: discord.Interaction):
+            zora_history[interaction.channel_id] = []
+            await interaction.response.send_message("tch. fine.", ephemeral=False)
+
     async def on_ready(self):
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
         print(f"[Zora Bot] Ready as {self.user}")
 
     async def on_message(self, message):
@@ -265,12 +285,6 @@ class ZoraBot(discord.Client):
 
         content = message.content.strip()
         if not content:
-            return
-
-        # Reset command
-        if content.lower() == "/reset":
-            zora_history[message.channel.id] = []
-            await message.reply("tch. fine.")
             return
 
         # Build conversation history
