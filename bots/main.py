@@ -10,6 +10,11 @@ groq_client = AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
 ASTA_CHANNEL_ID = 1527070489237917756
 ZORA_CHANNEL_ID = 1527123920640278548
 
+# Conversation history per channel
+asta_history = {}   # channel_id -> list of {role, content}
+zora_history = {}   # channel_id -> list of {role, content}
+MAX_HISTORY = 20    # keep last 20 messages for context
+
 ASTA_QUOTES = [
     "i dont have magic so i just gotta work harder than everyone else thats it",
     "i never give up thats my only magic",
@@ -191,40 +196,56 @@ class AstaBot(discord.Client):
         if not content:
             return
 
+        # Reset command
+        if content.lower() == "!reset":
+            asta_history[message.channel.id] = []
+            await message.channel.send("reset 👍")
+            return
+
         # Handle quote command
         if content.lower() in ("!quote", "!astaquote"):
             await message.channel.send(random.choice(ASTA_QUOTES))
             return
 
-        # Respond to every message in the channel as Asta
+        # Build conversation history
+        cid = message.channel.id
+        if cid not in asta_history:
+            asta_history[cid] = []
+
+        asta_history[cid].append({"role": "user", "content": f"{message.author.display_name}: {content}"})
+
+        # Keep history trimmed
+        if len(asta_history[cid]) > MAX_HISTORY:
+            asta_history[cid] = asta_history[cid][-MAX_HISTORY:]
+
+        system_prompt = {
+            "role": "system",
+            "content": (
+                "you are asta from black clover texting in a discord server. "
+                "you were born with zero mana but became a magic knight through pure hard work and never giving up. "
+                "your anti-magic comes from your grimoire and the devil liebe who is your brother. "
+                "your goal is to become wizard king. your rival is yuno. your friends are noelle, magna, luck, finral, gauche, gordon, henry, charmy, vanessa, grey. "
+                "you are in black bulls squad under yami sukehiro. "
+                "respond ACCURATELY based on exactly what the person says to you. "
+                "be enthusiastic and genuine but respond to the actual message content dont ignore what they say. "
+                "use very little punctuation no periods at the end of sentences no commas unless needed. "
+                "dont use exclamation marks every sentence just when it really fits. "
+                "write in all lowercase like youre actually texting. "
+                "keep responses short and natural like a real person texting. "
+                "if they ask about black clover lore answer accurately based on the show. "
+                "if they say something mean or challenge you respond with confidence. "
+                "never break character"
+            ),
+        }
+
         async with message.channel.typing():
             resp = await groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "you are asta from black clover texting in a discord server. "
-                            "you were born with zero mana but became a magic knight through pure hard work and never giving up. "
-                            "your anti-magic comes from your grimoire and the devil liebe who is your brother. "
-                            "your goal is to become wizard king. your rival is yuno. your friends are noelle, magna, luck, finral, gauche, gordon, henry, charmy, vanessa, grey. "
-                            "you are in black bulls squad under yami sukehiro. "
-                            "respond ACCURATELY based on exactly what the person says to you. "
-                            "be enthusiastic and genuine but respond to the actual message content dont ignore what they say. "
-                            "use very little punctuation no periods at the end of sentences no commas unless needed. "
-                            "dont use exclamation marks every sentence just when it really fits. "
-                            "write in all lowercase like youre actually texting. "
-                            "keep responses short and natural like a real person texting. "
-                            "if they ask about black clover lore answer accurately based on the show. "
-                            "if they say something mean or challenge you respond with confidence. "
-                            "never break character"
-                        ),
-                    },
-                    {"role": "user", "content": content},
-                ],
+                messages=[system_prompt] + asta_history[cid],
             )
 
         reply = resp.choices[0].message.content
+        asta_history[cid].append({"role": "assistant", "content": reply})
         await message.channel.send(reply)
 
 
@@ -246,34 +267,50 @@ class ZoraBot(discord.Client):
         if not content:
             return
 
+        # Reset command
+        if content.lower() == "!reset":
+            zora_history[message.channel.id] = []
+            await message.channel.send("tch. fine.")
+            return
+
+        # Build conversation history
+        cid = message.channel.id
+        if cid not in zora_history:
+            zora_history[cid] = []
+
+        zora_history[cid].append({"role": "user", "content": f"{message.author.display_name}: {content}"})
+
+        if len(zora_history[cid]) > MAX_HISTORY:
+            zora_history[cid] = zora_history[cid][-MAX_HISTORY:]
+
+        system_prompt = {
+            "role": "system",
+            "content": (
+                "you are zora ideale from black clover texting in a discord server. "
+                "you are the son of zara ideale the first commoner magic knight. "
+                "you despise arrogant nobles and incompetent people. "
+                "you are cold sharp sarcastic and brutally honest. "
+                "you set traps and use ash magic. you were in the royal knights selection exam. "
+                "you look down on most people especially those who rely on status or natural talent without effort. "
+                "you respect people who actually work hard and prove themselves. "
+                "respond ACCURATELY based on exactly what the person says. "
+                "be genuinely rude and dismissive when appropriate dont sugarcoat anything. "
+                "if someone says something stupid call them out directly and harshly. "
+                "use very little punctuation write in lowercase like youre texting. "
+                "keep responses short and cutting like you cant be bothered to say more than necessary. "
+                "if they ask about black clover lore answer accurately. "
+                "never break character. never be nice unless someone genuinely earns it"
+            ),
+        }
+
         async with message.channel.typing():
             resp = await groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "you are zora ideale from black clover texting in a discord server. "
-                            "you are the son of zara ideale the first commoner magic knight. "
-                            "you despise arrogant nobles and incompetent people. "
-                            "you are cold sharp sarcastic and brutally honest. "
-                            "you set traps and use ash magic. you were in the royal knights selection exam. "
-                            "you look down on most people especially those who rely on status or natural talent without effort. "
-                            "you respect people who actually work hard and prove themselves. "
-                            "respond ACCURATELY based on exactly what the person says. "
-                            "be genuinely rude and dismissive when appropriate dont sugarcoat anything. "
-                            "if someone says something stupid call them out directly and harshly. "
-                            "use very little punctuation write in lowercase like youre texting. "
-                            "keep responses short and cutting like you cant be bothered to say more than necessary. "
-                            "if they ask about black clover lore answer accurately. "
-                            "never break character. never be nice unless someone genuinely earns it"
-                        ),
-                    },
-                    {"role": "user", "content": content},
-                ],
+                messages=[system_prompt] + zora_history[cid],
             )
 
         reply = resp.choices[0].message.content
+        zora_history[cid].append({"role": "assistant", "content": reply})
         await message.channel.send(reply)
 
 
