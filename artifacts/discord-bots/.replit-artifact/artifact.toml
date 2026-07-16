@@ -1,0 +1,26 @@
+kind = "web"
+previewPath = "/bots/"
+title = "Discord Bots"
+version = "1.0.0"
+id = "artifacts/discord-bots"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/bots/" ]
+localPort = 23200
+
+[services.development]
+run = "pnpm --filter @workspace/discord-bots run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["pip", "install", "-r", "bots/requirements.txt"]
+
+[services.production.run]
+args = ["python3", "bots/main.py"]
+
+[services.env]
+PORT = "23200"
+BASE_PATH = "/bots/"
