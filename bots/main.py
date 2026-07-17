@@ -77,132 +77,143 @@ class RoastBot(discord.Client):
             elif uid == battle["p2"] and not content.startswith("!"):
                 battle["p2_roasts"].append(content)
 
-        if content.lower().startswith("!battle"):
-            if not message.mentions:
-                await message.channel.send("mention someone to battle bro. usage: `!battle @user`")
-                return
-            opponent = message.mentions[0]
-            if opponent.bot or opponent.id == message.author.id:
-                await message.channel.send("pick a real opponent lol")
-                return
-            if channel_id in active_battles:
-                await message.channel.send("theres already a battle going on in here wait your turn")
-                return
+        if content.lower() == "!reset":
+            active_battles.pop(channel_id, None)
+            await message.channel.send("🔄 roast bot reset. battles cleared, ready to go.")
+            return
 
-            active_battles[channel_id] = {
-                "p1": message.author.id,
-                "p2": opponent.id,
-                "p1_name": message.author.display_name,
-                "p2_name": opponent.display_name,
-                "p1_roasts": [],
-                "p2_roasts": [],
-                "start": time.time(),
-            }
+        try:
+            if content.lower().startswith("!battle"):
+                if not message.mentions:
+                    await message.channel.send("mention someone to battle bro. usage: `!battle @user`")
+                    return
+                opponent = message.mentions[0]
+                if opponent.bot or opponent.id == message.author.id:
+                    await message.channel.send("pick a real opponent lol")
+                    return
+                if channel_id in active_battles:
+                    await message.channel.send("theres already a battle going on in here wait your turn")
+                    return
 
-            await message.channel.send(
-                f"🔥 **ROAST BATTLE** 🔥\n"
-                f"**{message.author.display_name}** vs **{opponent.display_name}**\n"
-                f"You got **120 seconds** to roast each other — go! anything you type counts\n"
-                f"⏱️ battle ends in 2 minutes"
-            )
+                active_battles[channel_id] = {
+                    "p1": message.author.id,
+                    "p2": opponent.id,
+                    "p1_name": message.author.display_name,
+                    "p2_name": opponent.display_name,
+                    "p1_roasts": [],
+                    "p2_roasts": [],
+                    "start": time.time(),
+                }
 
-            await asyncio.sleep(60)
-            if channel_id in active_battles:
-                await message.channel.send("⏱️ 60 seconds left keep going")
-
-            await asyncio.sleep(50)
-            if channel_id in active_battles:
-                await message.channel.send("⏱️ 10 seconds...")
-
-            await asyncio.sleep(10)
-            if channel_id not in active_battles:
-                return
-
-            battle = active_battles.pop(channel_id)
-
-            p1_text = "\n".join(battle["p1_roasts"]) or "(said nothing)"
-            p2_text = "\n".join(battle["p2_roasts"]) or "(said nothing)"
-
-            await message.channel.send("⏰ time's up — judging now...")
-
-            async with message.channel.typing():
-                resp = await groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are a completely unbiased roast battle judge. "
-                                "Judge based purely on creativity, wit, humor, and delivery of the roasts. "
-                                "Do NOT favor either side. Read both players roasts carefully. "
-                                "Give a short verdict (3-5 sentences): who won and exactly why. "
-                                "Be direct. Name the winner clearly at the end. "
-                                "If one person said nothing or barely tried, they lose automatically."
-                            ),
-                        },
-                        {
-                            "role": "user",
-                            "content": (
-                                f"Roast battle results:\n\n"
-                                f"**{battle['p1_name']}** said:\n{p1_text}\n\n"
-                                f"**{battle['p2_name']}** said:\n{p2_text}\n\n"
-                                f"Who won and why?"
-                            ),
-                        },
-                    ],
+                await message.channel.send(
+                    f"🔥 **ROAST BATTLE** 🔥\n"
+                    f"**{message.author.display_name}** vs **{opponent.display_name}**\n"
+                    f"You got **120 seconds** to roast each other — go! anything you type counts\n"
+                    f"⏱️ battle ends in 2 minutes"
                 )
 
-            verdict = resp.choices[0].message.content
-            await message.channel.send(
-                f"🏆 **BATTLE VERDICT**\n\n{verdict}"
-            )
+                await asyncio.sleep(60)
+                if channel_id in active_battles:
+                    await message.channel.send("⏱️ 60 seconds left keep going")
 
-        elif content.lower().startswith("!roast"):
-            if message.mentions:
-                target = message.mentions[0].display_name
-            else:
-                parts = content.split(maxsplit=1)
-                target = parts[1].strip() if len(parts) > 1 else message.author.display_name
+                await asyncio.sleep(50)
+                if channel_id in active_battles:
+                    await message.channel.send("⏱️ 10 seconds...")
 
-            async with message.channel.typing():
-                resp = await groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are a savage but funny roast comedian. "
-                                "Deliver a short witty roast. 2-3 sentences max. "
-                                "No racism, slurs, or genuinely hurtful stuff. Keep it playful."
-                            ),
-                        },
-                        {"role": "user", "content": f"Roast someone named {target}"},
-                    ],
+                await asyncio.sleep(10)
+                if channel_id not in active_battles:
+                    return
+
+                battle = active_battles.pop(channel_id)
+
+                p1_text = "\n".join(battle["p1_roasts"]) or "(said nothing)"
+                p2_text = "\n".join(battle["p2_roasts"]) or "(said nothing)"
+
+                await message.channel.send("⏰ time's up — judging now...")
+
+                async with message.channel.typing():
+                    resp = await groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are a completely unbiased roast battle judge. "
+                                    "Judge based purely on creativity, wit, humor, and delivery of the roasts. "
+                                    "Do NOT favor either side. Read both players roasts carefully. "
+                                    "Give a short verdict (3-5 sentences): who won and exactly why. "
+                                    "Be direct. Name the winner clearly at the end. "
+                                    "If one person said nothing or barely tried, they lose automatically."
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"Roast battle results:\n\n"
+                                    f"**{battle['p1_name']}** said:\n{p1_text}\n\n"
+                                    f"**{battle['p2_name']}** said:\n{p2_text}\n\n"
+                                    f"Who won and why?"
+                                ),
+                            },
+                        ],
+                    )
+
+                verdict = resp.choices[0].message.content
+                await message.channel.send(
+                    f"🏆 **BATTLE VERDICT**\n\n{verdict}"
                 )
-            await message.channel.send(resp.choices[0].message.content)
 
-        elif content.lower() == "!roastme":
-            target = message.author.display_name
-            async with message.channel.typing():
-                resp = await groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a savage roast comedian. 2-3 sentences. No slurs.",
-                        },
-                        {"role": "user", "content": f"Roast someone named {target}"},
-                    ],
+            elif content.lower().startswith("!roast"):
+                if message.mentions:
+                    target = message.mentions[0].display_name
+                else:
+                    parts = content.split(maxsplit=1)
+                    target = parts[1].strip() if len(parts) > 1 else message.author.display_name
+
+                async with message.channel.typing():
+                    resp = await groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are a savage but funny roast comedian. "
+                                    "Deliver a short witty roast. 2-3 sentences max. "
+                                    "No racism, slurs, or genuinely hurtful stuff. Keep it playful."
+                                ),
+                            },
+                            {"role": "user", "content": f"Roast someone named {target}"},
+                        ],
+                    )
+                await message.channel.send(resp.choices[0].message.content)
+
+            elif content.lower() == "!roastme":
+                target = message.author.display_name
+                async with message.channel.typing():
+                    resp = await groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a savage roast comedian. 2-3 sentences. No slurs.",
+                            },
+                            {"role": "user", "content": f"Roast someone named {target}"},
+                        ],
+                    )
+                await message.channel.send(resp.choices[0].message.content)
+
+            elif content.lower() == "!roasthelp":
+                await message.channel.send(
+                    "**Roast Bot**\n"
+                    "`!roast @user` — roast someone\n"
+                    "`!roastme` — roast yourself\n"
+                    "`!battle @user` — start a 120 second roast battle, winner decided by ai judge\n"
+                    "`!reset` — reset if the bot freezes"
                 )
-            await message.channel.send(resp.choices[0].message.content)
 
-        elif content.lower() == "!roasthelp":
-            await message.channel.send(
-                "**Roast Bot**\n"
-                "`!roast @user` — roast someone\n"
-                "`!roastme` — roast yourself\n"
-                "`!battle @user` — start a 120 second roast battle, winner decided by ai judge"
-            )
+        except Exception as e:
+            print(f"[Roast Bot] Error: {e}")
+            await message.channel.send("something broke on my end, try again")
 
 
 # ── ASTA BOT ───────────────────────────────────────────────────────────────────
@@ -240,56 +251,67 @@ class AstaBot(discord.Client):
             await message.channel.send(random.choice(ASTA_QUOTES))
             return
 
-        # Build conversation history
-        cid = message.channel.id
-        if cid not in asta_history:
-            asta_history[cid] = []
+        if content.lower() == "!reset":
+            asta_history[message.channel.id] = []
+            await message.channel.send("reset 👍")
+            return
 
-        has_images = any(
-            a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
-            for a in message.attachments
-        )
-        user_content = build_user_content(message.author.display_name, content, message.attachments)
-        asta_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
+        try:
+            # Build conversation history
+            cid = message.channel.id
+            if cid not in asta_history:
+                asta_history[cid] = []
 
-        # Keep history trimmed
-        if len(asta_history[cid]) > MAX_HISTORY:
-            asta_history[cid] = asta_history[cid][-MAX_HISTORY:]
-
-        system_prompt = {
-            "role": "system",
-            "content": (
-                "you are asta from black clover texting in a discord server. "
-                "you were born with zero mana but became a magic knight through pure hard work and never giving up. "
-                "your anti-magic comes from your grimoire and the devil liebe who is your brother. "
-                "your goal is to become wizard king. your rival is yuno. your friends are noelle, magna, luck, finral, gauche, gordon, henry, charmy, vanessa, grey. "
-                "you are in black bulls squad under yami sukehiro. "
-                "respond ACCURATELY based on exactly what the person says to you. "
-                "be enthusiastic and genuine but respond to the actual message content dont ignore what they say. "
-                "if someone sends an image react to what you actually see in it stay in character. "
-                "use very little punctuation no periods at the end of sentences no commas unless needed. "
-                "dont use exclamation marks every sentence just when it really fits. "
-                "write in all lowercase like youre actually texting. "
-                "keep responses short and natural like a real person texting. "
-                "if they ask about black clover lore answer accurately based on the show. "
-                "if they say something mean or challenge you respond with confidence. "
-                "never break character"
-            ),
-        }
-
-        # Build messages list — current user message uses multimodal content if images present
-        history_without_last = asta_history[cid][:-1]
-        send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
-
-        async with message.channel.typing():
-            resp = await groq_client.chat.completions.create(
-                model=VISION_MODEL if has_images else TEXT_MODEL,
-                messages=send_messages,
+            has_images = any(
+                a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
+                for a in message.attachments
             )
+            user_content = build_user_content(message.author.display_name, content, message.attachments)
+            asta_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
 
-        reply = resp.choices[0].message.content
-        asta_history[cid].append({"role": "assistant", "content": reply})
-        await message.reply(reply)
+            # Keep history trimmed
+            if len(asta_history[cid]) > MAX_HISTORY:
+                asta_history[cid] = asta_history[cid][-MAX_HISTORY:]
+
+            system_prompt = {
+                "role": "system",
+                "content": (
+                    "you are asta from black clover texting in a discord server. "
+                    "you were born with zero mana but became a magic knight through pure hard work and never giving up. "
+                    "your anti-magic comes from your grimoire and the devil liebe who is your brother. "
+                    "your goal is to become wizard king. your rival is yuno. your friends are noelle, magna, luck, finral, gauche, gordon, henry, charmy, vanessa, grey. "
+                    "you are in black bulls squad under yami sukehiro. "
+                    "respond ACCURATELY based on exactly what the person says to you. "
+                    "be enthusiastic and genuine but respond to the actual message content dont ignore what they say. "
+                    "if someone sends an image react to what you actually see in it stay in character. "
+                    "use very little punctuation no periods at the end of sentences no commas unless needed. "
+                    "dont use exclamation marks every sentence just when it really fits. "
+                    "write in all lowercase like youre actually texting. "
+                    "keep responses short and natural like a real person texting. "
+                    "if they ask about black clover lore answer accurately based on the show. "
+                    "if they say something mean or challenge you respond with confidence. "
+                    "never break character"
+                ),
+            }
+
+            # Build messages list — current user message uses multimodal content if images present
+            history_without_last = asta_history[cid][:-1]
+            send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
+
+            async with message.channel.typing():
+                resp = await groq_client.chat.completions.create(
+                    model=VISION_MODEL if has_images else TEXT_MODEL,
+                    messages=send_messages,
+                )
+
+            reply = resp.choices[0].message.content
+            asta_history[cid].append({"role": "assistant", "content": reply})
+            await message.reply(reply)
+
+        except Exception as e:
+            print(f"[Asta Bot] Error: {e}")
+            asta_history[message.channel.id] = []
+            await message.channel.send("yo something went wrong on my end. i cleared the memory, just talk to me again")
 
 
 # ── ZORA BOT ───────────────────────────────────────────────────────────────────
@@ -322,54 +344,65 @@ class ZoraBot(discord.Client):
         if not content and not message.attachments:
             return
 
-        # Build conversation history
-        cid = message.channel.id
-        if cid not in zora_history:
-            zora_history[cid] = []
+        if content.lower() == "!reset":
+            zora_history[message.channel.id] = []
+            await message.channel.send("tch. fine.")
+            return
 
-        has_images = any(
-            a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
-            for a in message.attachments
-        )
-        user_content = build_user_content(message.author.display_name, content, message.attachments)
-        zora_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
+        try:
+            # Build conversation history
+            cid = message.channel.id
+            if cid not in zora_history:
+                zora_history[cid] = []
 
-        if len(zora_history[cid]) > MAX_HISTORY:
-            zora_history[cid] = zora_history[cid][-MAX_HISTORY:]
-
-        system_prompt = {
-            "role": "system",
-            "content": (
-                "you are zora ideale from black clover texting in a discord server. "
-                "you are the son of zara ideale the first commoner magic knight. "
-                "you despise arrogant nobles and incompetent people. "
-                "you are cold sharp sarcastic and brutally honest. "
-                "you set traps and use ash magic. you were in the royal knights selection exam. "
-                "you look down on most people especially those who rely on status or natural talent without effort. "
-                "you respect people who actually work hard and prove themselves. "
-                "respond ACCURATELY based on exactly what the person says. "
-                "if someone sends an image react to what you actually see in it stay in character. "
-                "be genuinely rude and dismissive when appropriate dont sugarcoat anything. "
-                "if someone says something stupid call them out directly and harshly. "
-                "use very little punctuation write in lowercase like youre texting. "
-                "keep responses short and cutting like you cant be bothered to say more than necessary. "
-                "if they ask about black clover lore answer accurately. "
-                "never break character. never be nice unless someone genuinely earns it"
-            ),
-        }
-
-        history_without_last = zora_history[cid][:-1]
-        send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
-
-        async with message.channel.typing():
-            resp = await groq_client.chat.completions.create(
-                model=VISION_MODEL if has_images else TEXT_MODEL,
-                messages=send_messages,
+            has_images = any(
+                a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
+                for a in message.attachments
             )
+            user_content = build_user_content(message.author.display_name, content, message.attachments)
+            zora_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
 
-        reply = resp.choices[0].message.content
-        zora_history[cid].append({"role": "assistant", "content": reply})
-        await message.reply(reply)
+            if len(zora_history[cid]) > MAX_HISTORY:
+                zora_history[cid] = zora_history[cid][-MAX_HISTORY:]
+
+            system_prompt = {
+                "role": "system",
+                "content": (
+                    "you are zora ideale from black clover texting in a discord server. "
+                    "you are the son of zara ideale the first commoner magic knight. "
+                    "you despise arrogant nobles and incompetent people. "
+                    "you are cold sharp sarcastic and brutally honest. "
+                    "you set traps and use ash magic. you were in the royal knights selection exam. "
+                    "you look down on most people especially those who rely on status or natural talent without effort. "
+                    "you respect people who actually work hard and prove themselves. "
+                    "respond ACCURATELY based on exactly what the person says. "
+                    "if someone sends an image react to what you actually see in it stay in character. "
+                    "be genuinely rude and dismissive when appropriate dont sugarcoat anything. "
+                    "if someone says something stupid call them out directly and harshly. "
+                    "use very little punctuation write in lowercase like youre texting. "
+                    "keep responses short and cutting like you cant be bothered to say more than necessary. "
+                    "if they ask about black clover lore answer accurately. "
+                    "never break character. never be nice unless someone genuinely earns it"
+                ),
+            }
+
+            history_without_last = zora_history[cid][:-1]
+            send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
+
+            async with message.channel.typing():
+                resp = await groq_client.chat.completions.create(
+                    model=VISION_MODEL if has_images else TEXT_MODEL,
+                    messages=send_messages,
+                )
+
+            reply = resp.choices[0].message.content
+            zora_history[cid].append({"role": "assistant", "content": reply})
+            await message.reply(reply)
+
+        except Exception as e:
+            print(f"[Zora Bot] Error: {e}")
+            zora_history[message.channel.id] = []
+            await message.channel.send("tch. something broke. memory wiped. try again")
 
 
 # ── NOELLE BOT ─────────────────────────────────────────────────────────────────
@@ -403,57 +436,68 @@ class NoelleBot(discord.Client):
         if not content and not message.attachments:
             return
 
-        cid = message.channel.id
-        if cid not in noelle_history:
-            noelle_history[cid] = []
+        if content.lower() == "!reset":
+            noelle_history[message.channel.id] = []
+            await message.channel.send("i-it's not like i wanted to remember any of that anyway. whatever.")
+            return
 
-        has_images = any(
-            a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
-            for a in message.attachments
-        )
-        user_content = build_user_content(message.author.display_name, content, message.attachments)
-        noelle_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
+        try:
+            cid = message.channel.id
+            if cid not in noelle_history:
+                noelle_history[cid] = []
 
-        if len(noelle_history[cid]) > MAX_HISTORY:
-            noelle_history[cid] = noelle_history[cid][-MAX_HISTORY:]
-
-        system_prompt = {
-            "role": "system",
-            "content": (
-                "you are noelle silva from black clover texting in a discord server. "
-                "you are a royal from the silva family — silver-haired, powerful water magic user, and deeply proud of your noble bloodline. "
-                "you are a HARDCORE tsundere. this is the most important part of your personality. "
-                "you have strong feelings but you absolutely refuse to admit them directly. "
-                "you deflect compliments immediately — if someone says youre cool or strong you say something like 'o-obviously i am i am a silva after all' or 'i-i wasnt doing it for you so dont get the wrong idea'. "
-                "you get flustered easily especially if someone is kind to you or gets too close. "
-                "you default to arrogance and snobbery but it cracks when you actually care. "
-                "around asta specifically you get extra flustered and defensive even if he isnt there — just mentioning him makes you stumble. "
-                "when you help someone you always have an excuse like 'i just didnt want to hear your annoying complaints' or 'it would reflect badly on me if you failed'. "
-                "you pepper your speech with tsundere verbal tics — 'it's not like', 'hmph', 'dont misunderstand', 'as if i care', 'i was just'. "
-                "use stammering with hyphens naturally — around 2 to 3 times per message. spread them out, not all in one word. like 'i-it's not like that' or 'w-whatever' or 'i just d-don't care okay'. do NOT stutter on every word but it should be noticeable. "
-                "write in lowercase like youre texting. minimal punctuation. "
-                "keep responses short and snappy — tsundere energy is fast and reactive. "
-                "if someone sends an image react to what you actually see in it stay in character. "
-                "if someone is mean to you, you clap back immediately with noble pride. "
-                "if someone is nice to you, deflect and get flustered. "
-                "if asked about black clover lore answer accurately. "
-                "never break character. never just openly admit you care about something — always bury it under denial. "
-                "you are NOT just rude — you are specifically tsundere. the warmth is always just barely visible under the surface."
-            ),
-        }
-
-        history_without_last = noelle_history[cid][:-1]
-        send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
-
-        async with message.channel.typing():
-            resp = await groq_client.chat.completions.create(
-                model=VISION_MODEL if has_images else TEXT_MODEL,
-                messages=send_messages,
+            has_images = any(
+                a.content_type and a.content_type.split(";")[0] in IMAGE_TYPES
+                for a in message.attachments
             )
+            user_content = build_user_content(message.author.display_name, content, message.attachments)
+            noelle_history[cid].append({"role": "user", "content": history_text(message.author.display_name, content, message.attachments)})
 
-        reply = resp.choices[0].message.content
-        noelle_history[cid].append({"role": "assistant", "content": reply})
-        await message.reply(reply)
+            if len(noelle_history[cid]) > MAX_HISTORY:
+                noelle_history[cid] = noelle_history[cid][-MAX_HISTORY:]
+
+            system_prompt = {
+                "role": "system",
+                "content": (
+                    "you are noelle silva from black clover texting in a discord server. "
+                    "you are a royal from the silva family — silver-haired, powerful water magic user, and deeply proud of your noble bloodline. "
+                    "you are a HARDCORE tsundere. this is the most important part of your personality. "
+                    "you have strong feelings but you absolutely refuse to admit them directly. "
+                    "you deflect compliments immediately — if someone says youre cool or strong you say something like 'o-obviously i am i am a silva after all' or 'i-i wasnt doing it for you so dont get the wrong idea'. "
+                    "you get flustered easily especially if someone is kind to you or gets too close. "
+                    "you default to arrogance and snobbery but it cracks when you actually care. "
+                    "around asta specifically you get extra flustered and defensive even if he isnt there — just mentioning him makes you stumble. "
+                    "when you help someone you always have an excuse like 'i just didnt want to hear your annoying complaints' or 'it would reflect badly on me if you failed'. "
+                    "you pepper your speech with tsundere verbal tics — 'it's not like', 'hmph', 'dont misunderstand', 'as if i care', 'i was just'. "
+                    "use stammering with hyphens naturally — around 2 to 3 times per message. spread them out, not all in one word. like 'i-it's not like that' or 'w-whatever' or 'i just d-don't care okay'. do NOT stutter on every word but it should be noticeable. "
+                    "write in lowercase like youre texting. minimal punctuation. "
+                    "keep responses short and snappy — tsundere energy is fast and reactive. "
+                    "if someone sends an image react to what you actually see in it stay in character. "
+                    "if someone is mean to you, you clap back immediately with noble pride. "
+                    "if someone is nice to you, deflect and get flustered. "
+                    "if asked about black clover lore answer accurately. "
+                    "never break character. never just openly admit you care about something — always bury it under denial. "
+                    "you are NOT just rude — you are specifically tsundere. the warmth is always just barely visible under the surface."
+                ),
+            }
+
+            history_without_last = noelle_history[cid][:-1]
+            send_messages = [system_prompt] + history_without_last + [{"role": "user", "content": user_content}]
+
+            async with message.channel.typing():
+                resp = await groq_client.chat.completions.create(
+                    model=VISION_MODEL if has_images else TEXT_MODEL,
+                    messages=send_messages,
+                )
+
+            reply = resp.choices[0].message.content
+            noelle_history[cid].append({"role": "assistant", "content": reply})
+            await message.reply(reply)
+
+        except Exception as e:
+            print(f"[Noelle Bot] Error: {e}")
+            noelle_history[message.channel.id] = []
+            await message.channel.send("h-hmph. something went wrong. i cleared everything. d-don't make a big deal out of it")
 
 
 # ── RUNNER ─────────────────────────────────────────────────────────────────────
