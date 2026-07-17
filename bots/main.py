@@ -58,7 +58,19 @@ ASTA_QUOTES = [
 active_battles = {}  # channel_id -> battle state
 
 class RoastBot(discord.Client):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.tree = app_commands.CommandTree(self)
+
+        @self.tree.command(name="resetbot", description="Reset Roast Bot and clear any active battles")
+        async def resetbot(interaction: discord.Interaction):
+            active_battles.pop(interaction.channel_id, None)
+            await interaction.response.send_message("🔄 roast bot reset. battles cleared, ready to go.")
+
     async def on_ready(self):
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
         print(f"[Roast Bot] Ready as {self.user}")
 
     async def on_message(self, message):
@@ -76,11 +88,6 @@ class RoastBot(discord.Client):
                 battle["p1_roasts"].append(content)
             elif uid == battle["p2"] and not content.startswith("!"):
                 battle["p2_roasts"].append(content)
-
-        if content.lower() == "!reset":
-            active_battles.pop(channel_id, None)
-            await message.channel.send("🔄 roast bot reset. battles cleared, ready to go.")
-            return
 
         try:
             if content.lower().startswith("!battle"):
@@ -223,8 +230,8 @@ class AstaBot(discord.Client):
         super().__init__(**kwargs)
         self.tree = app_commands.CommandTree(self)
 
-        @self.tree.command(name="reset", description="Reset Asta's conversation memory")
-        async def reset(interaction: discord.Interaction):
+        @self.tree.command(name="resetbot", description="Reset Asta's conversation memory")
+        async def resetbot(interaction: discord.Interaction):
             asta_history[interaction.channel_id] = []
             await interaction.response.send_message("reset 👍", ephemeral=False)
 
@@ -249,11 +256,6 @@ class AstaBot(discord.Client):
         # Handle quote command
         if content.lower() in ("!quote", "!astaquote"):
             await message.channel.send(random.choice(ASTA_QUOTES))
-            return
-
-        if content.lower() == "!reset":
-            asta_history[message.channel.id] = []
-            await message.channel.send("reset 👍")
             return
 
         try:
@@ -321,8 +323,8 @@ class ZoraBot(discord.Client):
         super().__init__(**kwargs)
         self.tree = app_commands.CommandTree(self)
 
-        @self.tree.command(name="reset", description="Reset Zora's conversation memory")
-        async def reset(interaction: discord.Interaction):
+        @self.tree.command(name="resetbot", description="Reset Zora's conversation memory")
+        async def resetbot(interaction: discord.Interaction):
             zora_history[interaction.channel_id] = []
             await interaction.response.send_message("tch. fine.", ephemeral=False)
 
@@ -342,11 +344,6 @@ class ZoraBot(discord.Client):
 
         content = message.content.strip()
         if not content and not message.attachments:
-            return
-
-        if content.lower() == "!reset":
-            zora_history[message.channel.id] = []
-            await message.channel.send("tch. fine.")
             return
 
         try:
@@ -412,8 +409,8 @@ class NoelleBot(discord.Client):
         super().__init__(**kwargs)
         self.tree = app_commands.CommandTree(self)
 
-        @self.tree.command(name="reset", description="Reset Noelle's conversation memory")
-        async def reset(interaction: discord.Interaction):
+        @self.tree.command(name="resetbot", description="Reset Noelle's conversation memory")
+        async def resetbot(interaction: discord.Interaction):
             noelle_history[interaction.channel_id] = []
             await interaction.response.send_message(
                 "i-it's not like i wanted to remember any of that anyway. memory cleared. whatever.", ephemeral=False
@@ -434,11 +431,6 @@ class NoelleBot(discord.Client):
 
         content = message.content.strip()
         if not content and not message.attachments:
-            return
-
-        if content.lower() == "!reset":
-            noelle_history[message.channel.id] = []
-            await message.channel.send("i-it's not like i wanted to remember any of that anyway. whatever.")
             return
 
         try:
