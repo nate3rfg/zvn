@@ -1,0 +1,33 @@
+name: Discord Bots 24/7
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # midnight UTC
+    - cron: '0 6 * * *'   # 6am UTC
+    - cron: '0 12 * * *'  # noon UTC
+    - cron: '0 18 * * *'  # 6pm UTC
+  workflow_dispatch:       # manual trigger from GitHub UI
+
+jobs:
+  run-bots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355   # just under 6 hours, GitHub's max
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r bots/requirements.txt
+
+      - name: Run bots
+        env:
+          ROAST_BOT_TOKEN: ${{ secrets.ROAST_BOT_TOKEN }}
+          ASTA_BOT_TOKEN: ${{ secrets.ASTA_BOT_TOKEN }}
+          ZORA_BOT_TOKEN: ${{ secrets.ZORA_BOT_TOKEN }}
+          NOELLE_BOT_TOKEN: ${{ secrets.NOELLE_BOT_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python3 bots/main.py
