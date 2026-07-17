@@ -220,7 +220,10 @@ class RoastBot(discord.Client):
 
         except Exception as e:
             print(f"[Roast Bot] Error: {e}")
-            await message.channel.send("something broke on my end, try again")
+            if "429" in str(e) or "rate_limit" in str(e):
+                await message.channel.send("groq rate limit hit. out of tokens for today, try again in a few hours")
+            else:
+                await message.channel.send("something broke on my end, try again")
 
 
 # ── ASTA BOT ───────────────────────────────────────────────────────────────────
@@ -312,8 +315,11 @@ class AstaBot(discord.Client):
 
         except Exception as e:
             print(f"[Asta Bot] Error: {e}")
-            asta_history[message.channel.id] = []
-            await message.channel.send("yo something went wrong on my end. i cleared the memory, just talk to me again")
+            if "429" in str(e) or "rate_limit" in str(e):
+                await message.channel.send("yo we hit the groq rate limit for today. out of tokens. try again in a few hours")
+            else:
+                asta_history[message.channel.id] = []
+                await message.channel.send("yo something went wrong on my end. i cleared the memory, just talk to me again")
 
 
 # ── ZORA BOT ───────────────────────────────────────────────────────────────────
@@ -398,8 +404,11 @@ class ZoraBot(discord.Client):
 
         except Exception as e:
             print(f"[Zora Bot] Error: {e}")
-            zora_history[message.channel.id] = []
-            await message.channel.send("tch. something broke. memory wiped. try again")
+            if "429" in str(e) or "rate_limit" in str(e):
+                await message.channel.send("tch. groq rate limit hit. we're out of tokens for today. try again tomorrow or in a few hours.")
+            else:
+                zora_history[message.channel.id] = []
+                await message.channel.send("tch. something broke. memory wiped. try again")
 
 
 # ── NOELLE BOT ─────────────────────────────────────────────────────────────────
@@ -488,8 +497,11 @@ class NoelleBot(discord.Client):
 
         except Exception as e:
             print(f"[Noelle Bot] Error: {e}")
-            noelle_history[message.channel.id] = []
-            await message.channel.send("h-hmph. something went wrong. i cleared everything. d-don't make a big deal out of it")
+            if "429" in str(e) or "rate_limit" in str(e):
+                await message.channel.send("h-hmph. we're out of groq tokens for today. d-don't look at me like that. try again in a few hours")
+            else:
+                noelle_history[message.channel.id] = []
+                await message.channel.send("h-hmph. something went wrong. i cleared everything. d-don't make a big deal out of it")
 
 
 # ── RUNNER ─────────────────────────────────────────────────────────────────────
